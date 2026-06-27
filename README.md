@@ -2,6 +2,8 @@
 
 CLI tool for corpus-grounded LLM benchmarking. Sends questions from a benchmark dataset to a target model, judges responses using a separate judge model, and computes statistics.
 
+Designed to be highly flexible to work well for any correctly formatted JSON test dataset like the one shipped in `tests/data/dataset.json`.
+
 ## Install
 
 Requires [uv](https://docs.astral.sh/uv/).
