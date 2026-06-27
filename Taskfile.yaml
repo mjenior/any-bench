@@ -1,0 +1,44 @@
+version: "3"
+
+tasks:
+  install:
+    desc: Install dependencies with uv
+    cmds:
+      - uv sync --group dev
+
+  test:
+    desc: Run tests
+    cmds:
+      - uv run pytest tests/ -v
+
+  test-cov:
+    desc: Run tests with coverage
+    cmds:
+      - uv run pytest tests/ -v --cov=any_bench --cov-report=term-missing
+
+  lint:
+    desc: Run ruff linter
+    cmds:
+      - uv run ruff check any_bench/ tests/
+
+  format:
+    desc: Run ruff formatter
+    cmds:
+      - uv run ruff format any_bench/ tests/
+
+  format-check:
+    desc: Check formatting without modifying files
+    cmds:
+      - uv run ruff format --check any_bench/ tests/
+
+  check:
+    desc: Run lint and tests
+    cmds:
+      - task: lint
+      - task: test
+
+  clean:
+    desc: Remove build artifacts and caches
+    cmds:
+      - rm -rf __pycache__ .pytest_cache .ruff_cache .coverage htmlcov dist build *.egg-info
+      - find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
