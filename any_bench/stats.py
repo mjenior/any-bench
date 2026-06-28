@@ -139,3 +139,91 @@ def compute_and_write(
 
     write_csv(rows, output_path)
     return rows
+
+
+def _fmt_line(label: str, n: int, composite: float, pass_rate: float) -> str:
+    return f"  {label:<28} n={n:>4}   composite {composite:>5.2f}   pass {pass_rate:>6.1%}"
+
+
+def _aggregate(rows: list[dict]) -> tuple[int, float, float]:
+    """Return (num_questions, mean composite, mean pass rate) for a set of rows."""
+    n = len(rows)
+    composite = statistics.mean(r["composite_mean"] for r in rows)
+    pass_rate = statistics.mean(r["pass_rate"] for r in rows)
+    return n, composite, pass_rate
+
+
+def format_summary_report(rows: list[dict], pass_threshold: int) -> str:
+    """Build a final performance report with per-category and composite stats.
+
+    Summarizes the full test set: an overall composite line, per-section score
+    averages, and breakdowns by difficulty and question type.
+    """
+    if not rows:
+        return "No results to report."
+
+    total_runs = sum(r["num_runs"] for r in rows)
+    n, composite, pass_rate = _aggregate(rows)
+    negatives = sum(r["negative_match_count"] for r in rows)
+
+    lines: list[str] = []
+    lines.append("=" * 64)
+    lines.append("FINAL PERFORMANCE REPORT")
+    lines.append("=" * 64)
+    lines.append(f"Questions evaluated : {n}")
+    lines.append(f"Total runs          : {total_runs}")
+    lines.append(f"Pass threshold      : composite >= {pass_threshold}")
+    lines.append("")
+    lines.append("Composite (all questions)")
+    lines.append(f"  mean score    : {composite:.2f} / 5")
+    lines.append(f"  pass rate     : {pass_rate:.1%}")
+    lines.append(f"  median (med.) : {statistics.median(r['composite_median'] for r in rows):.2f}")
+    lines.append(f"  range         : {min(r['composite_min'] for r in rows)} - {max(r['composite_max'] for r in rows)}")
+    lines.append(f"  negative hits : {negatives}")
+
+    # Per-section (scoring category) averages across questions.
+    lines.append("")
+    lines.append("Section scores (mean of per-question medians, 0-5)")
+    for section in SECTION_NAMES:
+        avg = statistics.mean(r[f"{section}_median"] for r in rows)
+        label = section.replace("_", " ").title()
+        lines.append(f"  {label:<26} : {avg:.2f}")
+
+    # Breakdown helper for a metadata field.
+    def _breakdown(title: str, key: str) -> None:
+        groups: dict[str, list[dict]] = {}
+        for r in rows:
+            groups.setdefault(r[key], []).append(r)
+        if len(groups) <= 1 and "" in groups:
+            return  # no meaningful metadata (e.g. stats-from-checkpoint stubs)
+        lines.append("")
+        lines.append(title)
+        for label in sorted(groups):
+            gn, gc, gp = _aggregate(groups[label])
+            lines.append(_fmt_line(label or "(unknown)", gn, gc, gp))
+
+    _breakdown("By difficulty", "difficulty")
+    _breakdown("By question type", "question_type")
+    _breakdown("By domain", "domain")
+
+    # Best/worst questions: rank by mean composite, breaking ties toward the
+    # most consistent runs (lowest stdev) so "consistently" performing
+    # questions surface ahead of high-variance ones.
+    top_k = min(5, len(rows))
+    best = sorted(rows, key=lambda r: (-r["composite_mean"], r["composite_stdev"]))[:top_k]
+    worst = sorted(rows, key=lambda r: (r["composite_mean"], r["composite_stdev"]))[:top_k]
+
+    def _ranked(title: str, ranked: list[dict]) -> None:
+        lines.append("")
+        lines.append(title)
+        for r in ranked:
+            lines.append(
+                f"  {r['id']:<24} composite {r['composite_mean']:>5.2f}"
+                f" (sd {r['composite_stdev']:>4.2f})   pass {r['pass_rate']:>6.1%}"
+            )
+
+    _ranked(f"Best performing questions (top {top_k}, consistent)", best)
+    _ranked(f"Worst performing questions (bottom {top_k}, consistent)", worst)
+
+    lines.append("=" * 64)
+    return "\n".join(lines)

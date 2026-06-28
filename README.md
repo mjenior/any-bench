@@ -91,10 +91,48 @@ Run it like any other dataset:
 any-bench run tests/data/mljenior_benchmark.json -m gpt-4o -n 5 -o mljenior_results.csv
 ```
 
+## Final Report
+
+After writing the CSV, both `run` and `stats` print a **final performance report** to stdout summarizing the whole test set:
+
+- **Composite (all questions)** — mean score, overall pass rate, median, score range, and total negative-response hits across every question and run.
+- **Section scores** — the six scoring categories (instruction compliance, factual accuracy, required-fact coverage, reasoning quality, relevance/focus, clarity/usability), each averaged across questions.
+- **Breakdowns** — count, mean composite, and pass rate grouped by difficulty, question type, and domain.
+- **Best / worst performing questions** — questions ranked by mean composite, with ties broken toward the lowest standard deviation so *consistently* strong and weak questions surface ahead of high-variance ones. Each line shows the question `id`, mean composite, standard deviation, and pass rate.
+
+```
+================================================================
+FINAL PERFORMANCE REPORT
+================================================================
+Questions evaluated : 150
+Total runs          : 750
+Pass threshold      : composite >= 3
+
+Composite (all questions)
+  mean score    : 3.40 / 5
+  pass rate     : 62.0%
+  ...
+
+Section scores (mean of per-question medians, 0-5)
+  Instruction Compliance     : 3.50
+  ...
+
+By difficulty
+  Easy                         n=  30   composite  4.20   pass  80.0%
+  ...
+
+Best performing questions (top 5, consistent)
+  q006                     composite  4.47 (sd 0.05)   pass  92.0%
+  ...
+================================================================
+```
+
+> Note: the `stats` command rebuilds from a checkpoint, which does not store dataset metadata, so its difficulty / question-type / domain breakdowns collapse to a single bucket. The composite, section-score, and best/worst sections are fully accurate in both modes.
+
 ## How It Works
 
 1. Loads dataset and checkpoint (if resuming)
 2. Sends each question to the target model
 3. Judges each response against the dataset entry using a separate judge model
 4. Saves results to checkpoint after each judgment
-5. Computes per-question statistics and writes CSV
+5. Computes per-question statistics, writes CSV, and prints the final report

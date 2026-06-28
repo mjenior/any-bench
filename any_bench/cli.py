@@ -9,11 +9,12 @@ import sys
 from pathlib import Path
 
 import click
+from dotenv import load_dotenv
 
 from . import __version__
 from .models import BenchmarkConfig, JudgeResult, Difficulty
 from .resume import CheckpointMismatchError, load_checkpoint_file
-from .stats import compute_and_write
+from .stats import compute_and_write, format_summary_report
 
 
 class EnumChoice(click.Choice):
@@ -54,6 +55,9 @@ def _load_system_prompt(value: str | None) -> str | None:
             raise click.BadParameter(f"System prompt file not found: {path}")
         return path.read_text()
     return value
+
+
+load_dotenv()
 
 
 @click.group()
@@ -170,12 +174,10 @@ def run(
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
 
-    # Summary
+    # Final performance report
     if rows:
-        pass_rates = [r["pass_rate"] for r in rows]
-        avg_pass = sum(pass_rates) / len(pass_rates)
-        click.echo(f"\nBenchmark complete: {len(rows)} questions evaluated")
-        click.echo(f"Average pass rate: {avg_pass:.1%} (threshold >= {pass_threshold})")
+        click.echo("")
+        click.echo(format_summary_report(rows, pass_threshold))
         click.echo(f"Results: {output}")
     else:
         click.echo("No results to report.")
@@ -251,7 +253,8 @@ def stats(checkpoint_file: str, pass_threshold: int, output: str | None) -> None
 
     rows = compute_and_write(stub_items, results, pass_threshold, output_path)
 
-    click.echo(f"Recomputed stats for {len(rows)} questions (pass threshold = {pass_threshold})")
+    click.echo("")
+    click.echo(format_summary_report(rows, pass_threshold))
     click.echo(f"Output: {output_path}")
 
 
